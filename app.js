@@ -1,12 +1,41 @@
+/*************************
+ * IMPORTS
+ *************************/
 const express = require("express");
 const admin = require("firebase-admin");
 const OpenAI = require("openai");
-const { RtcTokenBuilder, RtcRole } = require("agora-access-token");
-const AGORA_APP_ID = process.env.AGORA_APP_ID;
-const AGORA_APP_CERTIFICATE = process.env.AGORA_APP_CERTIFICATE;
+const {
+  RtcTokenBuilder,
+  RtcRole,
+} = require("agora-access-token");
 
+/*************************
+ * APP INIT
+ *************************/
+const app = express();
+const port = process.env.PORT || 3001;
 
-/* ===================== FIREBASE INIT ===================== */
+/*************************
+ * 🔐 CORS (MUST BE FIRST)
+ *************************/
+app.use((req, res, next) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.setHeader(
+    "Access-Control-Allow-Headers",
+    "Content-Type, Authorization"
+  );
+
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(200);
+  }
+
+  next();
+});
+
+/*************************
+ * FIREBASE INIT
+ *************************/
 const serviceAccount = JSON.parse(
   process.env.FIREBASE_SERVICE_ACCOUNT
 );
@@ -17,19 +46,28 @@ admin.initializeApp({
 
 const db = admin.firestore();
 
-/* ===================== OPENAI INIT ===================== */
+/*************************
+ * OPENAI INIT
+ *************************/
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-/* ===================== APP SETUP ===================== */
-const app = express();
-const port = process.env.PORT || 3001;
+/*************************
+ * AGORA CONFIG
+ *************************/
+const AGORA_APP_ID = process.env.AGORA_APP_ID;
+const AGORA_APP_CERTIFICATE =
+  process.env.AGORA_APP_CERTIFICATE;
 
-/* ===================== ROUTES ===================== */
+/*************************
+ * ROUTES
+ *************************/
 
-// Home route (Render default page)
-app.get("/", (req, res) => res.type("html").send(html));
+/* 🏠 Home */
+app.get("/", (req, res) => {
+  res.send("Aira backend is running 🚀");
+});
 
 /* 🔥 Firebase connectivity test */
 app.get("/firebase-test", async (req, res) => {
@@ -44,7 +82,6 @@ app.get("/firebase-test", async (req, res) => {
       docsFound: snapshot.size,
     });
   } catch (err) {
-    console.error("Firebase test error:", err);
     res.status(500).json({
       success: false,
       error: err.message,
@@ -52,40 +89,43 @@ app.get("/firebase-test", async (req, res) => {
   }
 });
 
-/* 🧠 Aira – OpenAI thinking test */
-
+/* 🧠 Aira AI test */
 app.get("/aira-test", async (req, res) => {
   try {
     const userInput =
-      req.query.q || "I feel stuck in my career. What should I do?";
+      req.query.q ||
+      "I feel stuck in my career. What should I do?";
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        {
-          role: "system",
-          content:
-            "You are Aira, a calm, wise AI companion. Be practical, supportive, and concise.",
-        },
-        {
-          role: "user",
-          content: userInput,
-        },
-      ],
-    });
+    const completion =
+      await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content:
+              "You are Aira, a calm, wise AI companion. Be practical, supportive, and concise.",
+          },
+          {
+            role: "user",
+            content: userInput,
+          },
+        ],
+      });
 
     res.json({
       success: true,
-      response: completion.choices[0].message.content,
+      response:
+        completion.choices[0].message.content,
     });
   } catch (err) {
-    console.error("Aira test error:", err);
     res.status(500).json({
       success: false,
       error: err.message,
     });
   }
 });
+
+/* 🎥 Agora token endpoint */
 app.get("/agora-token", (req, res) => {
   try {
     const channelName = req.query.channel;
@@ -100,18 +140,22 @@ app.get("/agora-token", (req, res) => {
 
     const role = RtcRole.PUBLISHER;
     const expirationTimeInSeconds = 3600;
-    const currentTimestamp = Math.floor(Date.now() / 1000);
-    const privilegeExpireTime =
-      currentTimestamp + expirationTimeInSeconds;
-
-    const token = RtcTokenBuilder.buildTokenWithUid(
-      AGORA_APP_ID,
-      AGORA_APP_CERTIFICATE,
-      channelName,
-      uid,
-      role,
-      privilegeExpireTime
+    const currentTimestamp = Math.floor(
+      Date.now() / 1000
     );
+    const privilegeExpireTime =
+      currentTimestamp +
+      expirationTimeInSeconds;
+
+    const token =
+      RtcTokenBuilder.buildTokenWithUid(
+        AGORA_APP_ID,
+        AGORA_APP_CERTIFICATE,
+        channelName,
+        uid,
+        role,
+        privilegeExpireTime
+      );
 
     res.json({
       success: true,
@@ -121,7 +165,6 @@ app.get("/agora-token", (req, res) => {
       uid,
     });
   } catch (err) {
-    console.error("Agora token error:", err);
     res.status(500).json({
       success: false,
       error: err.message,
@@ -129,50 +172,12 @@ app.get("/agora-token", (req, res) => {
   }
 });
 
-/* ===================== SERVER ===================== */
-const server = app.listen(port, () =>
-  console.log(`Server running on port ${port}`)
-);
+/*************************
+ * START SERVER (LAST)
+ *************************/
+const server = app.listen(port, () => {
+  console.log(`Aira backend running on port ${port}`);
+});
 
 server.keepAliveTimeout = 120 * 1000;
 server.headersTimeout = 120 * 1000;
-
-/* ===================== HTML ===================== */
-const html = `
-<!DOCTYPE html>
-<html>
-  <head>
-    <title>Hello from Render!</title>
-    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
-    <script>
-      setTimeout(() => {
-        confetti({
-          particleCount: 100,
-          spread: 70,
-          origin: { y: 0.6 },
-          disableForReducedMotion: true
-        });
-      }, 500);
-    </script>
-    <style>
-      body {
-        font-family: Arial, sans-serif;
-        background: white;
-      }
-      section {
-        border-radius: 1em;
-        padding: 1em;
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-      }
-    </style>
-  </head>
-  <body>
-    <section>
-      Hello from Render!
-    </section>
-  </body>
-</html>
-`;
