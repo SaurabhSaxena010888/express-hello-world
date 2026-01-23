@@ -90,37 +90,15 @@ app.post("/audio-chunk", (req, res) => {
 /* =====================
    SPEECH → TEXT
 ===================== */
-app.post(
-  "/speech-to-text",
-  upload.single("audio"),
-  async (req, res) => {
-    try {
-      const audioPath = req.file.path;
+app.post("/speech-to-text", upload.single("audio"), async (req, res) => {
+  console.log("🎤 Audio received from browser");
 
-      const transcription =
-        await openai.audio.transcriptions.create({
-          file: fs.createReadStream(audioPath),
-          model: "gpt-4o-transcribe",
-        });
-
-      fs.unlinkSync(audioPath);
-
-      console.log("🗣️ User said:", transcription.text);
-
-      res.json({
-        success: true,
-        text: transcription.text,
-      });
-    } catch (err) {
-      console.error("STT error:", err);
-      res.status(500).json({
-        success: false,
-        error: err.message,
-      });
-    }
-  }
-);
-
+  // TEMP: bypass OpenAI to validate pipeline
+  res.json({
+    success: true,
+    text: "Hello, I heard you clearly."
+  });
+});
 /* =====================
    START SERVER
 ===================== */
