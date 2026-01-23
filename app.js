@@ -90,16 +90,59 @@ app.post("/audio-chunk", (req, res) => {
 /* =====================
    SPEECH → TEXT
 ===================== */
-app.post("/speech-to-text", upload.single("audio"), async (req, res) => {
-  console.log("🎤 Audio received from browser");
+const ffmpeg = require("fluent-ffmpeg");
+const path = require("path");
 
-  // TEMP: bypass OpenAI to validate pipeline
-  res.json({
-    success: true,
-    text: "Hello, I heard you clearly."
-  });
+app.post("/speech-to-text", upload.single("audio"), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: "No audio file received" });
+    }
+
+    console.log("🎤 Audio received:", req.file.mimetype);
+
+    const inputPath = req.file.path;
+    const outputPath = `${inputPath}.wav`;
+
+    // 🔁 Convert to WAV (16kHz, mono)
+    await new Promise((resolve, reject) => {
+      ffmpeg(inputPath)
+        .audioFrequency(16000)
+        .audioChannels(1)
+        .audioCodec("pcm_s16le")
+        .format("wav")
+        .save(outputPath)
+        .on("end", resolve)
+        .on("error", reject);
+    });
+
+    // 🧠 Send to OpenAI
+    const transcription = await openai.audio.transcriptions.create({
+      file: fs.createReadStream(outputPath),
+      model: "gpt-4o-transcribe",
+    });
+
+    console.log("🗣️ Transcription:", transcription.text);
+
+    // 🧹 Cleanup
+    fs.unlinkSync(inputPath);
+    fs.unlinkSync(outputPath);
+
+    res.json({
+      success: true,
+      text: transcription.text,
+    });
+
+  } catch (err) {
+    console.error("STT error:", err);
+    res.status(500).json({
+      success: false,
+      error: err.message,
+    });
+  }
 });
-/* =====================
+
+/*=====================
    START SERVER
 ===================== */
 app.listen(PORT, () => {
