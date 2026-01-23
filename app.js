@@ -234,6 +234,45 @@ app.get("/aira-join", async (req, res) => {
   }
 });
 
+/* Multer activation */
+
+import multer from "multer";
+import fs from "fs";
+import OpenAI from "openai";
+
+const upload = multer({ dest: "uploads/" });
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+
+/* 🧠 Speech → Text */
+app.post("/speech-to-text", upload.single("audio"), async (req, res) => {
+  try {
+    const audioPath = req.file.path;
+
+    const transcription = await openai.audio.transcriptions.create({
+      file: fs.createReadStream(audioPath),
+      model: "gpt-4o-transcribe",
+    });
+
+    fs.unlinkSync(audioPath); // cleanup
+
+    console.log("🗣️ User said:", transcription.text);
+
+    res.json({
+      success: true,
+      text: transcription.text,
+    });
+  } catch (err) {
+    console.error("STT error:", err);
+    res.status(500).json({
+      success: false,
+      error: err.message,
+    });
+  }
+});
+
 /*************************
  * START SERVER (LAST)
  *************************/
