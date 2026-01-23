@@ -171,10 +171,31 @@ app.get("/agora-token", (req, res) => {
     });
   }
 });
+/* 🎙️ Receive audio activity from browser */
 app.post("/audio-chunk", express.json(), (req, res) => {
-  console.log("🎙️ Audio stream ping received");
-  res.json({ success: true });
+  try {
+    const { channel, uid, timestamp } = req.body;
+
+    console.log("🎧 Aira listening");
+    console.log({
+      channel,
+      uid,
+      timestamp,
+    });
+
+    res.json({
+      success: true,
+      message: "Audio activity received by Aira",
+    });
+  } catch (err) {
+    console.error("Audio chunk error:", err);
+    res.status(500).json({
+      success: false,
+      error: err.message,
+    });
+  }
 });
+
 /* 🤖 Aira joins Agora channel (bot participant) */
 app.get("/aira-join", async (req, res) => {
   try {
