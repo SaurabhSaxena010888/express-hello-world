@@ -84,7 +84,30 @@ app.get("/agora-token", (req, res) => {
 ===================== */
 app.post("/audio-chunk", (req, res) => {
   console.log("🎧 Aira listening", req.body);
-  res.json({ success: true });
+  // 🤖 Aira thinks (LLM response)
+const aiResponse = await openai.chat.completions.create({
+  model: "gpt-4o-mini",
+  messages: [
+    {
+      role: "system",
+      content:
+        "You are Aira, a calm, professional AI career and workplace mentor. Respond clearly and concisely.",
+    },
+    {
+      role: "user",
+      content: transcription.text,
+    },
+  ],
+});
+
+const reply = aiResponse.choices[0].message.content;
+
+console.log("🤖 Aira replied:", reply);
+
+  res.json({
+  success: true,
+  userText: transcription.text,
+  reply,
 });
 
 /* =====================
