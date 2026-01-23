@@ -160,6 +160,45 @@ app.post("/speech-to-text", upload.single("audio"), async (req, res) => {
 });
 
 /* =====================
+   TEXT → SPEECH (AIRA SPEAKS)
+===================== */
+app.post("/text-to-speech", async (req, res) => {
+  try {
+    const { text } = req.body;
+
+    if (!text) {
+      return res.status(400).json({ error: "Text is required" });
+    }
+
+    console.log("🗣️ Aira speaking:", text);
+
+    const speechFile = `speech_${Date.now()}.mp3`;
+
+    const response = await openai.audio.speech.create({
+      model: "gpt-4o-mini-tts",
+      voice: "alloy", // calm professional voice
+      input: text,
+    });
+
+    const buffer = Buffer.from(await response.arrayBuffer());
+    fs.writeFileSync(speechFile, buffer);
+
+    res.set({
+      "Content-Type": "audio/mpeg",
+    });
+
+    res.sendFile(`${process.cwd()}/${speechFile}`, () => {
+      fs.unlinkSync(speechFile); // cleanup
+    });
+
+  } catch (err) {
+    console.error("❌ TTS error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
+/* =====================
    START SERVER
 ===================== */
 app.listen(PORT, () => {
