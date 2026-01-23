@@ -2,7 +2,10 @@ const express = require("express");
 const cors = require("cors");
 const multer = require("multer");
 const fs = require("fs");
-const OpenAI = require("openai");
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+
 const {
   RtcTokenBuilder,
   RtcRole
@@ -117,7 +120,6 @@ app.post("/speech-to-text", upload.single("audio"), async (req, res) => {
   try {
     console.log("🎤 Audio received from browser");
 
-    // 1️⃣ Transcribe audio
     const transcription = await openai.audio.transcriptions.create({
       file: fs.createReadStream(req.file.path),
       model: "gpt-4o-transcribe",
@@ -125,14 +127,13 @@ app.post("/speech-to-text", upload.single("audio"), async (req, res) => {
 
     console.log("🗣️ Transcription:", transcription.text);
 
-    // 2️⃣ Aira THINKS (LLM)
     const aiResponse = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
         {
           role: "system",
           content:
-            "You are Aira, a calm, professional AI career and workplace mentor. Respond clearly and concisely.",
+            "You are Aira, a calm, professional AI career and workplace mentor.",
         },
         {
           role: "user",
@@ -142,21 +143,17 @@ app.post("/speech-to-text", upload.single("audio"), async (req, res) => {
     });
 
     const reply = aiResponse.choices[0].message.content;
+
     console.log("🤖 Aira replied:", reply);
 
-    // 3️⃣ Respond to browser
     res.json({
       success: true,
       userText: transcription.text,
       reply,
     });
-
   } catch (err) {
-    console.error("❌ STT / LLM error:", err);
-    res.status(500).json({
-      success: false,
-      error: err.message,
-    });
+    console.error("❌ STT/LLM error:", err);
+    res.status(500).json({ error: err.message });
   }
 });
 
