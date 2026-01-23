@@ -1,6 +1,10 @@
 const express = require("express");
 const admin = require("firebase-admin");
 const OpenAI = require("openai");
+const { RtcTokenBuilder, RtcRole } = require("agora-access-token");
+const AGORA_APP_ID = process.env.AGORA_APP_ID;
+const AGORA_APP_CERTIFICATE = process.env.AGORA_APP_CERTIFICATE;
+
 
 /* ===================== FIREBASE INIT ===================== */
 const serviceAccount = JSON.parse(
@@ -49,6 +53,7 @@ app.get("/firebase-test", async (req, res) => {
 });
 
 /* 🧠 Aira – OpenAI thinking test */
+
 app.get("/aira-test", async (req, res) => {
   try {
     const userInput =
@@ -75,6 +80,48 @@ app.get("/aira-test", async (req, res) => {
     });
   } catch (err) {
     console.error("Aira test error:", err);
+    res.status(500).json({
+      success: false,
+      error: err.message,
+    });
+  }
+});
+app.get("/agora-token", (req, res) => {
+  try {
+    const channelName = req.query.channel;
+    const uid = req.query.uid || 0;
+
+    if (!channelName) {
+      return res.status(400).json({
+        success: false,
+        error: "channel parameter is required",
+      });
+    }
+
+    const role = RtcRole.PUBLISHER;
+    const expirationTimeInSeconds = 3600;
+    const currentTimestamp = Math.floor(Date.now() / 1000);
+    const privilegeExpireTime =
+      currentTimestamp + expirationTimeInSeconds;
+
+    const token = RtcTokenBuilder.buildTokenWithUid(
+      AGORA_APP_ID,
+      AGORA_APP_CERTIFICATE,
+      channelName,
+      uid,
+      role,
+      privilegeExpireTime
+    );
+
+    res.json({
+      success: true,
+      appId: AGORA_APP_ID,
+      token,
+      channel: channelName,
+      uid,
+    });
+  } catch (err) {
+    console.error("Agora token error:", err);
     res.status(500).json({
       success: false,
       error: err.message,
