@@ -1,7 +1,8 @@
 /*************************************************
  * Aira Backend – Voice + AI
  *************************************************/
-
+const ffmpeg = require("fluent-ffmpeg");
+const path = require("path");
 const express = require("express");
 const cors = require("cors");
 const multer = require("multer");
@@ -96,24 +97,41 @@ app.post("/audio-chunk", (req, res) => {
 ===================== */
 app.post("/speech-to-text", upload.single("audio"), async (req, res) => {
   try {
-    console.log("🎤 Audio received from browser");
+    console.log("🎤 Raw audio received:", req.file.mimetype);
 
-    // 1️⃣ Transcription
+    const inputPath = req.file.path;
+    const outputPath = `${inputPath}.wav`;
+
+    // 🔁 Convert WebM → WAV (16kHz mono)
+    await new Promise((resolve, reject) => {
+      ffmpeg(inputPath)
+        .audioFrequency(16000)
+        .audioChannels(1)
+        .audioCodec("pcm_s16le")
+        .format("wav")
+        .save(outputPath)
+        .on("end", resolve)
+        .on("error", reject);
+    });
+
+    console.log("✅ Converted to WAV");
+
+    // 🧠 Send WAV to OpenAI
     const transcription = await openai.audio.transcriptions.create({
-      file: fs.createReadStream(req.file.path),
+      file: fs.createReadStream(outputPath),
       model: "gpt-4o-transcribe",
     });
 
     console.log("🗣️ Transcription:", transcription.text);
 
-    // 2️⃣ Aira thinks
+    // 🤖 Aira response
     const aiResponse = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
         {
           role: "system",
           content:
-            "You are Aira, a calm, professional AI career and workplace mentor. Respond clearly and concisely.",
+            "You are Aira, a calm, professional AI career and workplace mentor.",
         },
         {
           role: "user",
@@ -123,19 +141,20 @@ app.post("/speech-to-text", upload.single("audio"), async (req, res) => {
     });
 
     const reply = aiResponse.choices[0].message.content;
+
     console.log("🤖 Aira replied:", reply);
 
-    // 3️⃣ Cleanup temp file
-    fs.unlinkSync(req.file.path);
+    // 🧹 Cleanup
+    fs.unlinkSync(inputPath);
+    fs.unlinkSync(outputPath);
 
-    // 4️⃣ Respond to browser
     res.json({
       success: true,
       userText: transcription.text,
       reply,
     });
   } catch (err) {
-    console.error("❌ STT / LLM error:", err);
+    console.error("❌ STT error:", err);
     res.status(500).json({ error: err.message });
   }
 });
