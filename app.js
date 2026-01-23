@@ -1,14 +1,25 @@
 /*************************************************
- * Aira Backend – Voice + AI
+ * Aira Backend – Voice + AI (Production Ready)
  *************************************************/
-const ffmpeg = require("fluent-ffmpeg");
-const path = require("path");
 const express = require("express");
 const cors = require("cors");
 const multer = require("multer");
 const fs = require("fs");
+const path = require("path");
+const ffmpeg = require("fluent-ffmpeg");
 const OpenAI = require("openai");
 const { RtcTokenBuilder, RtcRole } = require("agora-access-token");
+
+/* =====================
+   HELPERS
+===================== */
+function splitForSpeech(text) {
+  return text
+    .replace(/\n/g, " ")
+    .split(/(?<=[.!?])\s+/)
+    .filter(Boolean)
+    .slice(0, 3); // 🔥 faster & more natural
+}
 
 /* =====================
    APP SETUP
@@ -17,7 +28,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-const upload = multer({ dest: "uploads/" });
+const upload = multer({ dest: "/tmp" });
 
 /* =====================
    ENV VARIABLES
@@ -28,7 +39,7 @@ const AGORA_APP_CERTIFICATE = process.env.AGORA_APP_CERTIFICATE;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
 /* =====================
-   OPENAI CLIENT (ONCE)
+   OPENAI CLIENT
 ===================== */
 const openai = new OpenAI({
   apiKey: OPENAI_API_KEY,
@@ -37,8 +48,8 @@ const openai = new OpenAI({
 /* =====================
    HEALTH CHECK
 ===================== */
-app.get("/", (req, res) => {
-  res.send("Aira backend is running 🚀");
+app.get("/", (_, res) => {
+  res.send("✅ Aira backend is running");
 });
 
 /* =====================
@@ -46,40 +57,25 @@ app.get("/", (req, res) => {
 ===================== */
 app.get("/agora-token", (req, res) => {
   try {
-    const channelName = req.query.channel;
+    const { channel } = req.query;
     const uid = req.query.uid || 0;
 
-    if (!channelName) {
-      return res.status(400).json({
-        success: false,
-        error: "channel parameter is required",
-      });
+    if (!channel) {
+      return res.status(400).json({ error: "channel required" });
     }
-
-    const role = RtcRole.PUBLISHER;
-    const expirationTimeInSeconds = 3600;
-    const currentTimestamp = Math.floor(Date.now() / 1000);
-    const privilegeExpireTime =
-      currentTimestamp + expirationTimeInSeconds;
 
     const token = RtcTokenBuilder.buildTokenWithUid(
       AGORA_APP_ID,
       AGORA_APP_CERTIFICATE,
-      channelName,
+      channel,
       uid,
-      role,
-      privilegeExpireTime
+      RtcRole.PUBLISHER,
+      Math.floor(Date.now() / 1000) + 3600
     );
 
-    res.json({
-      success: true,
-      appId: AGORA_APP_ID,
-      token,
-      channel: channelName,
-      uid,
-    });
+    res.json({ appId: AGORA_APP_ID, token, channel, uid });
   } catch (err) {
-    console.error("Agora token error:", err);
+    console.error("Agora error:", err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -96,118 +92,110 @@ app.post("/audio-chunk", (req, res) => {
    SPEECH → TEXT → AI
 ===================== */
 app.post("/speech-to-text", upload.single("audio"), async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: "Audio file missing" });
+  }
+
+  const inputPath = req.file.path;
+  const wavPath = `${inputPath}.wav`;
+
   try {
-    console.log("🎤 Raw audio received:", req.file.mimetype);
+    console.log("🎤 Audio received:", req.file.mimetype);
 
-    const inputPath = req.file.path;
-    const outputPath = `${inputPath}.wav`;
-
-    // 🔁 Convert WebM → WAV (16kHz mono)
+    /* Convert to WAV */
     await new Promise((resolve, reject) => {
       ffmpeg(inputPath)
         .audioFrequency(16000)
         .audioChannels(1)
         .audioCodec("pcm_s16le")
         .format("wav")
-        .save(outputPath)
+        .save(wavPath)
         .on("end", resolve)
         .on("error", reject);
     });
 
     console.log("✅ Converted to WAV");
 
-    // 🧠 Send WAV to OpenAI
+    /* Speech → Text */
     const transcription = await openai.audio.transcriptions.create({
-      file: fs.createReadStream(outputPath),
+      file: fs.createReadStream(wavPath),
       model: "gpt-4o-transcribe",
     });
 
     console.log("🗣️ Transcription:", transcription.text);
 
-    // 🤖 Aira response
-    const aiResponse = await openai.chat.completions.create({
+    /* AI Response */
+    const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
         {
-  role: "system",
-  content: `
+          role: "system",
+          content: `
 You are Aira, a warm, confident, human-like AI assistant.
-Speak naturally, as if in a real conversation.
+Speak naturally and conversationally.
 Use short sentences.
-Sound thoughtful and present.
+Pause naturally.
 Avoid long explanations.
-Respond like you are talking, not writing.
-`
-}
-,
-        {
-          role: "user",
-          content: transcription.text,
+`,
         },
+        { role: "user", content: transcription.text },
       ],
     });
 
-    const reply = aiResponse.choices[0].message.content;
+    const reply = completion.choices[0].message.content;
+    const speechChunks = splitForSpeech(reply);
 
     console.log("🤖 Aira replied:", reply);
-
-    // 🧹 Cleanup
-    fs.unlinkSync(inputPath);
-    fs.unlinkSync(outputPath);
 
     res.json({
       success: true,
       userText: transcription.text,
       reply,
+      speechChunks,
     });
   } catch (err) {
     console.error("❌ STT error:", err);
     res.status(500).json({ error: err.message });
+  } finally {
+    try {
+      fs.unlinkSync(inputPath);
+      fs.unlinkSync(wavPath);
+    } catch {}
   }
 });
 
 /* =====================
-   TEXT → SPEECH (AIRA SPEAKS)
+   TEXT → SPEECH
 ===================== */
 app.post("/text-to-speech", async (req, res) => {
+  const { text } = req.body;
+
+  if (!text) {
+    return res.status(400).json({ error: "Text required" });
+  }
+
   try {
-    const { text } = req.body;
-
-    if (!text) {
-      return res.status(400).json({ error: "Text is required" });
-    }
-
     console.log("🗣️ Aira speaking:", text);
-
-    const speechFile = `speech_${Date.now()}.mp3`;
 
     const response = await openai.audio.speech.create({
       model: "gpt-4o-mini-tts",
-      voice: "alloy", // calm professional voice
+      voice: "alloy",
       input: text,
     });
 
     const buffer = Buffer.from(await response.arrayBuffer());
-    fs.writeFileSync(speechFile, buffer);
 
-    res.set({
-      "Content-Type": "audio/mpeg",
-    });
-
-    res.sendFile(`${process.cwd()}/${speechFile}`, () => {
-      fs.unlinkSync(speechFile); // cleanup
-    });
-
+    res.set("Content-Type", "audio/mpeg");
+    res.send(buffer);
   } catch (err) {
     console.error("❌ TTS error:", err);
     res.status(500).json({ error: err.message });
   }
 });
 
-
 /* =====================
    START SERVER
 ===================== */
 app.listen(PORT, () => {
-  console.log(`✅ Aira backend running on port ${PORT}`);
+  console.log(`🚀 Aira backend running on port ${PORT}`);
 });
