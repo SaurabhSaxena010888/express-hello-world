@@ -1,6 +1,12 @@
 /*************************
  * IMPORTS
  *************************/
+import express from "express";
+import cors from "cors";
+import multer from "multer";
+import fs from "fs";
+import OpenAI from "openai";
+
 const express = require("express");
 const admin = require("firebase-admin");
 const OpenAI = require("openai");
@@ -235,10 +241,6 @@ app.get("/aira-join", async (req, res) => {
 });
 
 /* Multer activation */
-
-import multer from "multer";
-import fs from "fs";
-import OpenAI from "openai";
 
 const upload = multer({ dest: "uploads/" });
 
