@@ -175,6 +175,43 @@ app.post("/audio-chunk", express.json(), (req, res) => {
   console.log("🎙️ Audio stream ping received");
   res.json({ success: true });
 });
+/* 🤖 Aira joins Agora channel (bot participant) */
+app.get("/aira-join", async (req, res) => {
+  try {
+    const channelName = req.query.channel || "aira-demo";
+    const uid = 999; // fixed UID for Aira bot
+
+    const role = RtcRole.SUBSCRIBER;
+    const expirationTimeInSeconds = 3600;
+    const currentTimestamp = Math.floor(Date.now() / 1000);
+    const privilegeExpireTime =
+      currentTimestamp + expirationTimeInSeconds;
+
+    const token = RtcTokenBuilder.buildTokenWithUid(
+      AGORA_APP_ID,
+      AGORA_APP_CERTIFICATE,
+      channelName,
+      uid,
+      role,
+      privilegeExpireTime
+    );
+
+    res.json({
+      success: true,
+      message: "Aira ready to join channel",
+      appId: AGORA_APP_ID,
+      channel: channelName,
+      uid,
+      token,
+    });
+  } catch (err) {
+    console.error("Aira join error:", err);
+    res.status(500).json({
+      success: false,
+      error: err.message,
+    });
+  }
+});
 
 /*************************
  * START SERVER (LAST)
