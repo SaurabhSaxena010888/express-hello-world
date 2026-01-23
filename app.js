@@ -129,10 +129,17 @@ app.post("/speech-to-text", upload.single("audio"), async (req, res) => {
       model: "gpt-4o-mini",
       messages: [
         {
-          role: "system",
-          content:
-            "You are Aira, a calm, professional AI career and workplace mentor.",
-        },
+  role: "system",
+  content: `
+You are Aira, a warm, confident, human-like AI assistant.
+Speak naturally, as if in a real conversation.
+Use short sentences.
+Sound thoughtful and present.
+Avoid long explanations.
+Respond like you are talking, not writing.
+`
+}
+,
         {
           role: "user",
           content: transcription.text,
