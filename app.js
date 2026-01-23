@@ -113,19 +113,52 @@ console.log("🤖 Aira replied:", reply);
 /* =====================
    SPEECH → TEXT
 ===================== */
-const ffmpeg = require("fluent-ffmpeg");
-const path = require("path");
-
 app.post("/speech-to-text", upload.single("audio"), async (req, res) => {
   try {
-    if (!req.file) {
-      return res.status(400).json({ error: "No audio file received" });
-    }
+    console.log("🎤 Audio received from browser");
 
-    console.log("🎤 Audio received:", req.file.mimetype);
+    // 1️⃣ Transcribe audio
+    const transcription = await openai.audio.transcriptions.create({
+      file: fs.createReadStream(req.file.path),
+      model: "gpt-4o-transcribe",
+    });
 
-    const inputPath = req.file.path;
-    const outputPath = `${inputPath}.wav`;
+    console.log("🗣️ Transcription:", transcription.text);
+
+    // 2️⃣ Aira THINKS (LLM)
+    const aiResponse = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are Aira, a calm, professional AI career and workplace mentor. Respond clearly and concisely.",
+        },
+        {
+          role: "user",
+          content: transcription.text,
+        },
+      ],
+    });
+
+    const reply = aiResponse.choices[0].message.content;
+    console.log("🤖 Aira replied:", reply);
+
+    // 3️⃣ Respond to browser
+    res.json({
+      success: true,
+      userText: transcription.text,
+      reply,
+    });
+
+  } catch (err) {
+    console.error("❌ STT / LLM error:", err);
+    res.status(500).json({
+      success: false,
+      error: err.message,
+    });
+  }
+});
 
     // 🔁 Convert to WAV (16kHz, mono)
     await new Promise((resolve, reject) => {
