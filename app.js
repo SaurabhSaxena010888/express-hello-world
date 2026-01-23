@@ -171,6 +171,10 @@ app.get("/agora-token", (req, res) => {
     });
   }
 });
+app.post("/audio-chunk", express.json(), (req, res) => {
+  console.log("🎙️ Audio stream ping received");
+  res.json({ success: true });
+});
 
 /*************************
  * START SERVER (LAST)
