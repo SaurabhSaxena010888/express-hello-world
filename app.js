@@ -5,6 +5,8 @@ import cors from "cors";
 const app = express();
 app.use(cors());
 app.use(express.json());
+console.log("RETELL_API_KEY exists:", !!process.env.RETELL_API_KEY);
+console.log("RETELL_AGENT_ID:", process.env.RETELL_AGENT_ID);
 
 // 🔹 Health check (optional but useful)
 app.get("/", (req, res) => {
@@ -40,4 +42,5 @@ app.post("/createRetellSession", async (req, res) => {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
-});
+}
+);
