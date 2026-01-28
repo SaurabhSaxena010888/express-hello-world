@@ -5,6 +5,12 @@ import cors from "cors";
 const app = express();
 app.use(cors());
 app.use(express.json());
+app.get("/debug", (req, res) => {
+  res.json({
+    status: "ok",
+    routes: ["GET /", "POST /createRetellSession"]
+  });
+});
 
 // 🔹 Safe debug log (do NOT log actual key)
 console.log("OPENAI_API_KEY exists:", !!process.env.OPENAI_API_KEY);
