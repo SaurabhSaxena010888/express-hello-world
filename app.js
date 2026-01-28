@@ -5,12 +5,6 @@ import cors from "cors";
 const app = express();
 app.use(cors());
 app.use(express.json());
-app.get("/debug", (req, res) => {
-  res.json({
-    status: "ok",
-    routes: ["GET /", "POST /createRetellSession"]
-  });
-});
 
 // 🔹 Safe debug log (do NOT log actual key)
 console.log("OPENAI_API_KEY exists:", !!process.env.OPENAI_API_KEY);
@@ -18,6 +12,14 @@ console.log("OPENAI_API_KEY exists:", !!process.env.OPENAI_API_KEY);
 // 🔹 Health check
 app.get("/", (req, res) => {
   res.send("Aira backend running");
+});
+
+// 🔹 Debug route (optional, but accurate)
+app.get("/debug", (req, res) => {
+  res.json({
+    status: "ok",
+    routes: ["GET /", "POST /openai-realtime-token"]
+  });
 });
 
 // 🔹 Create OpenAI Realtime session (ephemeral token)
@@ -50,7 +52,7 @@ app.post("/openai-realtime-token", async (req, res) => {
       });
     }
 
-    // ✅ Return ephemeral client secret ONLY
+    // ✅ Return ephemeral token to browser
     res.json(data);
 
   } catch (error) {
