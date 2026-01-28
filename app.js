@@ -6,28 +6,30 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Debug logs (safe – do NOT log actual key)
-console.log("RETELL_API_KEY exists:", !!process.env.RETELL_API_KEY);
-console.log("RETELL_AGENT_ID exists:", !!process.env.RETELL_AGENT_ID);
+// 🔹 Safe debug log (do NOT log actual key)
+console.log("OPENAI_API_KEY exists:", !!process.env.OPENAI_API_KEY);
 
 // 🔹 Health check
 app.get("/", (req, res) => {
   res.send("Aira backend running");
 });
 
-// 🔹 Endpoint for frontend to start Retell web call
-app.post("/createRetellSession", async (req, res) => {
+// 🔹 Create OpenAI Realtime session (ephemeral token)
+app.post("/openai-realtime-token", async (req, res) => {
   try {
     const response = await fetch(
-      "https://api.retellai.com/v2/create-web-call",
+      "https://api.openai.com/v1/realtime/sessions",
       {
         method: "POST",
         headers: {
-          "Authorization": `Bearer ${process.env.RETELL_API_KEY}`,
+          "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          agent_id: process.env.RETELL_AGENT_ID,
+          model: "gpt-4o-realtime-preview",
+          voice: "alloy",
+          instructions:
+            "You are Aira, a calm, professional AI assistant. Speak clearly and naturally.",
         }),
       }
     );
@@ -35,16 +37,18 @@ app.post("/createRetellSession", async (req, res) => {
     const data = await response.json();
 
     if (!response.ok) {
-      return res.status(500).json(data);
+      console.error("OpenAI error:", data);
+      return res.status(500).json({
+        error: "Failed to create OpenAI realtime session",
+        details: data,
+      });
     }
 
-    // ✅ Return ONLY what frontend needs
-    res.json({
-      access_token: data.access_token,
-      call_id: data.call_id, // optional but useful for logs
-    });
+    // ✅ Return ephemeral client secret ONLY
+    res.json(data);
 
   } catch (error) {
+    console.error("Server error:", error);
     res.status(500).json({ error: error.message });
   }
 });
